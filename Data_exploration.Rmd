@@ -1,0 +1,1373 @@
+---
+title: "CCC Data Exploratin"
+author: "Chase Brewster"
+date: "2023-05-10"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Install and Load Packages
+```{r}
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("extrafont")
+install.packages("scales")
+install.packages("gganimate")
+
+library(tidyverse)
+library(ggplot2)
+library(extrafont)
+library(scales)
+library(gganimate)
+font_import()
+
+
+install.packages("zoo")
+install.packages("lubridate")
+install.packages("scales")
+install.packages("ggthemes")
+install.packages("gifski")
+install.packages("png")
+install.packages("extrafont")
+install.packages("showtext")
+install.packages("ragg")
+install.packages("magick")
+install.packages("gapminder")
+install.packages("rsvg")
+install.packages("png")
+install.packages("ggimage")
+install.packages("cowplot")
+install.packages("systemfonts")
+install.packages("anytime")
+
+library(zoo)
+library(scales)
+library(ggthemes)
+library(gifski)
+library(png)
+library(extrafont)
+library(showtext)
+library(magick)
+library(gapminder)
+library(rsvg)
+library(png)
+library(ggimage)
+library(cowplot)
+library(systemfonts)
+library(anytime)
+```
+
+#Wrangling data to look at polymer breakdowns
+```{r}
+ccc_data <- read_csv("CCC_MonthlyDataLog_Responses.csv")
+
+ccc_data <- head(ccc_data, 378) %>% 
+  select(1:65)
+
+summary(ccc_data)
+
+ccc_data$AT <- as.numeric(ccc_data$AT)
+ccc_data$AU <- as.numeric(ccc_data$AU)
+ccc_data$AV <- as.numeric(ccc_data$AV)
+ccc_data$AW <- as.numeric(ccc_data$AW)
+ccc_data$AX <- as.numeric(ccc_data$AX)
+ccc_data$AY <- as.numeric(ccc_data$AY)
+ccc_data$AZ <- as.numeric(ccc_data$AZ)
+ccc_data$BA <- as.numeric(ccc_data$BA)
+
+ccc_data <- ccc_data %>% 
+  rename(
+    LDPE = AT,
+    HDPE = AU,
+    PP = AV,
+    PVC = AW,
+    PS = AX,
+    Nylon = AY,
+    Teflon = AZ,
+    PET = BA
+  )
+
+#saving data
+write_csv(ccc_data, file = "ccc_data.csv")
+```
+
+#Stacked bar graph to show the percentage breakdown of each polymer type by country
+```{r}
+#polymer by country visualization
+
+ccc_data_polymer <- ccc_data %>% 
+  select(C, D, E, LDPE, HDPE, PP, PVC, PS, Nylon, Teflon, PET) %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET) %>% 
+  mutate(LDPE_p = (LDPE/total)*100) %>%
+  mutate(HDPE_p = (HDPE/total)*100) %>%
+  mutate(PP_p = (PP/total)*100) %>%
+  mutate(PVC_p = (PVC/total)*100) %>%
+  mutate(PS_p = (PS/total)*100) %>%
+  mutate(Nylon_p = (Nylon/total)*100) %>%
+  mutate(Teflon_p = (Teflon/total)*100) %>%
+  mutate(PET_p = (PET/total)*100)
+
+summary(ccc_data_polymer)
+
+ccc_data_polymer_short <- ccc_data %>% 
+  select(C, D, E, LDPE, HDPE, PP, PVC, PS, Nylon, Teflon, PET) %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET)
+
+polymer_summary <- ccc_data_polymer_short %>% 
+  group_by(E) %>% 
+  summarise(
+    LDPE = sum(LDPE, na.rm = TRUE),
+    HDPE = sum(HDPE, na.rm = TRUE),
+    PP = sum(PP, na.rm = TRUE),
+    PVC = sum(PVC, na.rm = TRUE),
+    PS = sum(PS, na.rm = TRUE),
+    Nylon = sum(Nylon, na.rm = TRUE),
+    Teflon = sum(Teflon, na.rm = TRUE),
+    PET = sum(PET, na.rm = TRUE)
+  )
+
+polymer_summary <- polymer_summary[c(2, 4:10),]
+
+polymer_summary_p <- polymer_summary %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET) %>% 
+  mutate(LDPE_p = (LDPE/total)*100) %>%
+  mutate(HDPE_p = (HDPE/total)*100) %>%
+  mutate(PP_p = (PP/total)*100) %>%
+  mutate(PVC_p = (PVC/total)*100) %>%
+  mutate(PS_p = (PS/total)*100) %>%
+  mutate(Nylon_p = (Nylon/total)*100) %>%
+  mutate(Teflon_p = (Teflon/total)*100) %>%
+  mutate(PET_p = (PET/total)*100)
+
+polymer_summary <- polymer_summary[c(1,2,4,5,7,8),]
+
+polymer_pivot <- polymer_summary %>% 
+  pivot_longer(
+    cols = 2:9,
+    names_to = "Polymer",
+    values_to = "Total"
+  )
+
+polymer_pivot <- polymer_pivot %>% 
+  group_by(E)
+
+cbPalette <- c("#56B4E9", "#E69F00", "#CC79A7", "#009E73", "#999999", "#0072B2", "#D55E00", "#F0E442")
+
+polymer_pivot <- polymer_pivot %>% 
+  rename(Country = E)
+
+polymer_pivot$Country <- factor(polymer_pivot$Country, levels = c("Kenya", "Ecuador", "Mexico", "Indonesia", "Thailand", "Vietnam"))
+
+polymer_graph <- ggplot(polymer_pivot, aes(fill=Polymer, y = Total, x = Country, group = Total)) +
+  geom_bar(position = "fill", stat = "identity", color = 'black', size = 0.2) +
+  theme_classic() +
+  scale_fill_manual(values=cbPalette_two) +
+  ggtitle("Polymer Type (%) by Country\n") +
+  xlab("\nCountry") +
+  ylab("% of Plastic Collected (by weight)\n") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = percent, expand = c(0,0)) +
+  annotate("text", label = "38.6%", x = 2, y = .19, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "39.4%", x = 4, y = .20, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "38.3%", x = 1, y = .19, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "65.9%", x = 3, y = .33, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "33.8%", x = 5, y = .16, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "54.4%", x = 6, y = .27, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "22.0%", x = 2, y = .50, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "33.0%", x = 4, y = .55, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "21.0%", x = 1, y = .49, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "31.0%", x = 3, y = .80, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "27.0%", x = 5, y = .48, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "15.8%", x = 6, y = .62, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "20.5%", x = 2, y = .71, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "25.3%", x = 4, y = .85, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "13.6%", x = 1, y = .66, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "25.2%", x = 5, y = .73, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "12.5%", x = 6, y = .76, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "10.1%", x = 1, y = .78, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "15.3%", x = 2, y = .89, color = 'white', size = 3, fontface = 'bold')
+
+polymer_graph
+
+ggsave("polymer_graph.png")
+
+class(polymer_pivot$Polymer)
+
+polymer_pivot$Polymer <- as.factor(polymer_pivot$Polymer)
+
+polymer_pivot$Polymer <- factor(polymer_pivot$Polymer, levels = c("Nylon", "Teflon","PVC", "LDPE", "PS", "PP","HDPE","PET"))
+
+cbPalette_two <- c("#CC79A7", "#F0E442", "#D55E00", "#E69F00", "#0072B2", "#999999", "#56B4E9", "#009E73")
+
+polymer_graph_alt <- ggplot(polymer_pivot, aes(fill = Polymer, y = Total, x = Country, group = Polymer)) +
+  geom_bar(position = "fill", stat = "identity", color = 'black', size = 0.2) +
+  theme_classic() +
+  scale_fill_manual(values=cbPalette_two) +
+  ggtitle("Polymer Type (%) by Country\n") +
+  xlab("\nCountry") +
+  ylab("% of Plastic Collected (by weight)\n") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = percent, expand = c(0,0)) +
+  guides(fill=guide_legend(title="Polymer")) +
+  annotate("text", label = "20.5%", x = 2, y = .11, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "33.0%", x = 4, y = .19, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "38.3%", x = 1, y = .19, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "65.9%", x = 3, y = .33, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "33.8%", x = 5, y = .16, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "12.5%", x = 6, y = .065, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "38.6%", x = 2, y = .39, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "39.4%", x = 4, y = .55, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "21.0%", x = 1, y = .49, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "31.0%", x = 3, y = .80, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "27.0%", x = 5, y = .48, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "15.8%", x = 6, y = .30, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "15.3%", x = 2, y = .71, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "25.3%", x = 4, y = .86, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "10.1%", x = 1, y = .645, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "25.2%", x = 5, y = .73, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "54.4%", x = 6, y = .65, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "13.6%", x = 1, y = .81, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "22.0%", x = 2, y = .89, color = 'white', size = 3, fontface = 'bold')
+
+polymer_graph_alt
+
+showtext_auto(enable = FALSE)
+
+ggsave("polymer_graph_alt.png")
+```
+
+#Recreate the animate GIF of cumulative plastic over time
+```{r}
+
+total_plastic_data <- ccc_data %>% 
+  select(F, E, C, D, AA, AB) %>% 
+  mutate(Plastic = ifelse(is.na(AB)| AB == 0, AA, AB))
+
+total_plastic_data <- total_plastic_data %>% 
+  rename(
+    Organization = F,
+    Country = E,
+    Month = C,
+    Year = D,
+    Wet = AA,
+    Dry = AB
+  )
+
+total_plastic_data <- total_plastic_data[2:378,]
+
+
+total_plastic_data <- total_plastic_data %>% 
+  mutate(Month_code = case_when(total_plastic_data$Month == "January" ~ "01",
+                                total_plastic_data$Month == "February" ~ "02",
+                                total_plastic_data$Month == "March" ~ "03",
+                                total_plastic_data$Month == "April" ~ "04",
+                                total_plastic_data$Month == "May" ~ "05",
+                                total_plastic_data$Month == "June" ~ "06",
+                                total_plastic_data$Month == "July" ~ "07",
+                                total_plastic_data$Month == "August" ~ "08",
+                                total_plastic_data$Month == "September" ~ "09",
+                                total_plastic_data$Month == "October" ~ "10",
+                                total_plastic_data$Month == "November" ~ "11",
+                                total_plastic_data$Month == "December" ~"12"))
+
+total_plastic_data$Date <- paste(total_plastic_data$Year, total_plastic_data$Month_code, "01", sep="-")
+
+total_plastic_data <- total_plastic_data %>% 
+  select(Organization, Country, Month, Year, Date, Plastic)
+
+total_plastic_data$Date <- as.Date(total_plastic_data$Date)
+
+total_plastic_data <- total_plastic_data[order(as.Date(total_plastic_data$Date, format="%Y/%m/%d")),]
+
+class(total_plastic_data$Plastic)
+
+total_plastic_data$Plastic <- as.numeric(total_plastic_data$Plastic)
+
+total_plastic_data <- total_plastic_data %>%
+  drop_na(Plastic) %>% 
+  group_by(Date)
+
+plastic_sum <- total_plastic_data %>%
+  group_by(Date) %>% 
+  summarise(plastic_sum=sum(Plastic))
+
+plastic_sum$Plastic_c <- cumsum(plastic_sum$plastic_sum)
+
+sum_line <- ggplot(plastic_sum, aes(x=Date, y=Plastic_c)) +
+  geom_line()
+
+sum_line
+
+sum_an <- sum_line +
+  transition_reveal(Date) +
+  view_follow()
+
+animate(sum_an, height=365,width=608,fps=30,duration=10,end_pause = 120,res=100,rewind=F)
+
+font.add("Interbold", "Inter-Bold.ttf")
+showtext_auto()
+font_import()
+font_files()
+fonts()
+font_paths()
+logo_white <- grid::rasterGrob(readPNG("CleanCurrentsCoalition_logo_vertical_1c_rev.png"))
+logo_circle <- grid::rasterGrob(readPNG("CleanCurrentsCoalition_logo_circle_3c.png"))
+
+
+getwd()
+
+water_bottle <- rep(c("/Users/brewster/Documents/CCC/Data/ccc_500k_milestone/waterbottle.png"),28)
+
+plastic_sum$Image <- water_bottle
+
+class(plastic_sum$Date)
+
+plastic_sum$Date <- as.Date(plastic_sum$Date)
+
+is.recursive(plastic_sum)
+
+plastic_sum <- plastic_sum %>% 
+  mutate(Caption = format(anytime(plastic_sum), format = "%b %Y"))
+
+class(plastic_sum$Plastic_c)
+
+plastic_sum$Caption <- c("June 2020", "July 2020", "August 2020", "September 2020", "October 2020","November 2020", "December 2020", "January 2021", "February 2021", "March 2021", "April 2021", "May 2021", "June 2021", "July 2021", "August 2021", "September 2021", "October 2021", "November 2021", "December 2021", "January 2022", "February 2022", "March 2022", "April 2022", "May 2022", "June 2022", "July 2022", "August 2022", "September 2022")
+
+plastic_sum$Label <- format(comma(round(plastic_sum$Plastic_c,0)))
+
+plastic_sum <- plastic_sum %>% 
+  rename(
+    Labels = Label
+  )
+
+class(plastic_sum$Labels)
+
+plastic_sum$Labels <- as.factor(plastic_sum$Labels)
+
+write_csv(plastic_sum, file = "plastic_sum_animate_data.csv")
+
+summary(plastic_sum)
+
+plastic_viz <- ggplot(plastic_sum, aes(x=Date, y=Plastic_c)) +
+  geom_line(color = "#043F67", size = 2) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  scale_y_continuous(breaks = seq(0, 900000, 100000), labels = comma) +
+  theme(axis.text.x = element_text(angle = -45, hjust = -.1, family = "Inter", color ="white", size = 10, face = "bold")) +
+  labs(title = "\n\nGlobal Plastic Captured\n\n",
+       x = "\n\nDate\n\n",
+       y = "\n\nPlastic Weight (kg)\n\n") +
+  theme(axis.title.x = element_text(family ="Inter", face = "bold", color = "white", size = 16)) +
+  theme(axis.title.y = element_text(family = "Inter", face = "bold", color = "white", size = 16)) +
+  annotation_custom(logo_circle, ymin = 450000, ymax = 820000, xmax = as.Date("2021-07-01")) +
+  theme(plot.title = element_text(family = "Inter", face = "bold", color = "white", size = 22, hjust = 0.5)) +
+  theme(plot.background = element_rect(fill = "#0072A6")) +
+  theme(panel.background = element_rect(fill = "White", color = "#043F67")) + 
+  theme(axis.text.y = element_text(color = "white", size = 10, face = "bold")) +
+  theme(plot.margin = unit(c(0,1.2,0,0), "cm")) +
+  theme(panel.grid.minor.y = element_line(color = "#0072A6", size = 0.05),
+        panel.grid.major.y = element_line(color = "#58B9DB", size = 0.3),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  geom_image(aes(image=Image), size = 0.07, by = "height") +
+  scale_size_identity() +
+  geom_text(aes(label = Caption), x = as.Date("2022-05-01"), y = 25000, color = "#043F67", family= "Inter", fontface = "bold", size = 6) +
+  geom_text(aes(label = Labels), x = as.Date("2022-05-01"), y = 75000, color = "#58B9DB", family = "Inter", fontface = "bold", size = 5) +
+  geom_point(size = 0.1, color = "white") +
+  expand_limits(x = as.Date("2022-10-01"), y = 900000)
+
+plastic_viz
+
+plastic_viz_animate <- plastic_viz +
+  transition_reveal(Date) +
+  view_follow(fixed_y = T, fixed_x = T) +
+  ease_aes('sine-in-out')
+
+animate_viz <- animate(plastic_viz_animate, fps = 20, duration = 30, start_pause = 30, end_pause = 60, height = 600, width = 650)
+
+animate_viz
+
+anim_save("plastic_viz_final.gif", animate_viz)
+```
+
+#Plastic Seasonality
+```{r}
+#start with WILDCOAST
+
+wildcoast_data <- ccc_data %>% 
+  filter(F == "Wildcoast") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  )
+
+wildcoast_data[16,2] = "2022"
+wildcoast_data[17,2] = "2022"
+
+wildcoast_data <- wildcoast_data %>% 
+  group_by(Device, Year)
+
+class(wildcoast_data$Month)
+class(wildcoast_data$Dirty)
+
+wildcoast_data$Month <- as.factor(wildcoast_data$Month)
+wildcoast_data$Month <- factor(wildcoast_data$Month, levels = c("January", "February","March", "April", "May", "June","July","August", "September", "October", "November", "December"))
+
+wildcoast_data$Year <- as.factor(wildcoast_data$Year)
+
+wildcoast_data$Dirty  <- as.numeric(wildcoast_data$Dirty)
+
+wc_viz <- ggplot(wildcoast_data, aes(x = Month, y = Dirty, group = Year, color = Year)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~Device)
+
+wc_viz
+
+
+#Thailand
+
+thailand_data <- ccc_data %>% 
+  filter(E == "Thailand") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  )
+
+thailand_data <- thailand_data %>% 
+  group_by(Device, Year)
+
+class(thailand_data$Month)
+class(thailand_data$Clean)
+
+thailand_data$Month <- as.factor(thailand_data$Month)
+thailand_data$Month <- factor(thailand_data$Month, levels = c("January", "February","March", "April", "May", "June","July","August", "September", "October", "November", "December"))
+
+thailand_data$Year <- as.factor(thailand_data$Year)
+
+thailand_data$Clean  <- as.numeric(thailand_data$Clean)
+
+thailand_data <- thailand_data %>%
+  drop_na(Clean)
+
+thailand_data$Device <- ifelse(thailand_data$Device == "TCGF-Dev-3", "TCGF-DEV-3", thailand_data$Device) 
+
+thai_viz <- ggplot(thailand_data, aes(x = Month, y = Clean, group = Year, color = Year)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~Device)
+
+thai_viz
+
+#Kenya
+
+kenya_data <- ccc_data %>% 
+  filter(E == "Kenya") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  )
+
+
+class(kenya_data$Month)
+class(kenya_data$Clean)
+
+kenya_data$Month <- as.factor(kenya_data$Month)
+kenya_data$Month <- factor(kenya_data$Month, levels = c("January", "February","March", "April", "May", "June","July","August", "September", "October", "November", "December"))
+
+kenya_data$Year <- as.factor(kenya_data$Year)
+
+kenya_data$Clean  <- as.numeric(kenya_data$Clean)
+
+kenya_data <- kenya_data %>%
+  drop_na(Clean)
+
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 04", "CMSV-DEV-4", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 05", "CMSV-DEV-5", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 07", "CMSV-DEV-7", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 08", "CMSV-DEV-8", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 09", "CMSV-DEV-9", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 1", "CMSV-DEV-1", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV 11", "CMSV-DEV-10", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "cmsv-dev 2", "CMSV-DEV-2", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "cmsv-dev 9", "CMSV-DEV-9", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV-03", "CMSV-DEV-3", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV-05", "CMSV-DEV-5", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV-06", "CMSV-DEV-6", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV-11", "CMSV-DEV-10", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV-DEV6", "CMSV-DEV-6", kenya_data$Device)
+kenya_data$Device <- ifelse(kenya_data$Device == "CMSV-DEV7", "CMSV-DEV-7", kenya_data$Device)
+
+kenya_data$Month <- as.character(kenya_data$Month)
+
+kenya_data <- kenya_data %>% 
+  mutate(Month_code = case_when(kenya_data$Month == "January" ~ "01",
+                                kenya_data$Month == "February" ~ "02",
+                                kenya_data$Month == "March" ~ "03",
+                                kenya_data$Month == "April" ~ "04",
+                                kenya_data$Month == "May" ~ "05",
+                                kenya_data$Month == "June" ~ "06",
+                                kenya_data$Month == "July" ~ "07",
+                                kenya_data$Month == "August" ~ "08",
+                                kenya_data$Month == "September" ~ "09",
+                                kenya_data$Month == "October" ~ "10",
+                                kenya_data$Month == "November" ~ "11",
+                                kenya_data$Month == "December" ~"12"))
+
+kenya_data$Date <- paste(kenya_data$Year, kenya_data$Month_code, "01", sep="-")
+
+kenya_data$Clean <- as.numeric(kenya_data$Clean)
+kenya_data$Engaged <- as.numeric(kenya_data$Engaged)
+
+kenya_summary <- kenya_data %>% 
+  group_by(Date) %>% 
+  summarise(
+    Plastic_mean = mean(Clean, na.rm = TRUE),
+    People = sum(Engaged, na.rm = TRUE)
+  )
+
+kenya_summary <- kenya_summary %>% 
+  mutate(People_c = cumsum(kenya_summary$People))
+
+class(kenya_summary$Plastic_mean)
+install.packages("patchwork")
+install.packages("hrbrthemes")
+library(patchwork)
+library(hrbrthemes)
+
+kenya_viz <- ggplot(kenya_summary, aes(x = Date, y = Plastic_mean, group = 1)) +
+  geom_point() +
+  geom_line()
+
+kenya_viz_2 <- ggplot(kenya_summary, aes(x = Date, y = People_c, group = 1)) +
+  geom_point() +
+  geom_line()
+
+kenya_viz
+kenya_viz_2
+
+kenya_viz + kenya_viz_2
+
+coeff <- .5
+
+col_plas <- "dodgerblue"
+col_peop <- "forestgreen"
+
+class(kenya_summary$Date)
+kenya_summary$Date <- as.Date(kenya_summary$Date)
+
+kenya_viz_3 <- ggplot(kenya_summary, aes(x=Date)) +
+  geom_line(aes(y = Plastic_mean), size = 1, group = 1, color = "dodgerblue") +
+  geom_line(aes(y = People_c/coeff), size = 1, group = 1, color = "forestgreen") +
+  scale_y_continuous(
+    name = "Mean Monthly Plastic Captured (kg)\n",
+    sec.axis = sec_axis(~.*coeff, name = "Direct Engagements (# of People)\n")
+  ) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  theme(
+    axis.title.y = element_text(color = "dodgerblue", size = 11),
+    axis.title.y.right = element_text(color = "forestgreen", size = 11),
+    axis.text.y = element_text(color = "dodgerblue"),
+    axis.text.y.right = element_text(color = "forestgreen"),
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Mean Plastic Captured & Total People Directly Engaged\n")
+
+kenya_viz_3
+
+showtext_auto(enable = FALSE)
+
+ggsave("kenya_meanplastic_and_people.png", kenya_viz_3)
+```
+
+```{r}
+thailand_data <- ccc_data %>% 
+  filter(E == "Thailand") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  ) 
+
+class(thailand_data$Month)
+class(thailand_data$Clean)
+
+thailand_data$Month <- as.factor(thailand_data$Month)
+thailand_data$Month <- factor(thailand_data$Month, levels = c("January", "February","March", "April", "May", "June","July","August", "September", "October", "November", "December"))
+
+thailand_data$Year <- as.factor(thailand_data$Year)
+
+thailand_data$Clean  <- as.numeric(thailand_data$Clean)
+
+thailand_data <- thailand_data %>%
+  drop_na(Clean)
+
+thailand_data$Device <- ifelse(thailand_data$Device == "TCGF-Dev-3", "TCGF-DEV-3", thailand_data$Device) 
+
+thailand_data$Month <- as.character(thailand_data$Month)
+
+thailand_data <- thailand_data %>% 
+  mutate(Month_code = case_when(thailand_data$Month == "January" ~ "01",
+                                thailand_data$Month == "February" ~ "02",
+                                thailand_data$Month == "March" ~ "03",
+                                thailand_data$Month == "April" ~ "04",
+                                thailand_data$Month == "May" ~ "05",
+                                thailand_data$Month == "June" ~ "06",
+                                thailand_data$Month == "July" ~ "07",
+                                thailand_data$Month == "August" ~ "08",
+                                thailand_data$Month == "September" ~ "09",
+                                thailand_data$Month == "October" ~ "10",
+                                thailand_data$Month == "November" ~ "11",
+                                thailand_data$Month == "December" ~"12"))
+
+thailand_data$Date <- paste(thailand_data$Year, thailand_data$Month_code, "01", sep="-")
+
+thailand_data$Clean <- as.numeric(thailand_data$Clean)
+thailand_data$Engaged <- as.numeric(thailand_data$Engaged)
+
+thailand_summary <- thailand_data %>% 
+  group_by(Date) %>% 
+  summarise(
+    Plastic_mean = mean(Clean, na.rm = TRUE),
+    People = sum(Engaged, na.rm = TRUE)
+  )
+
+thailand_summary <- thailand_summary %>% 
+  mutate(People_c = cumsum(thailand_summary$People))
+
+coeff <- 1
+
+col_plas <- "dodgerblue"
+col_peop <- "forestgreen"
+
+class(thailand_summary$Date)
+thailand_summary$Date <- as.Date(thailand_summary$Date)
+
+thai_viz <- ggplot(thailand_summary, aes(x=Date)) +
+  geom_line(aes(y = Plastic_mean), size = 1, group = 1, color = "dodgerblue") +
+  geom_line(aes(y = People_c/coeff), size = 1, group = 1, color = "forestgreen") +
+  scale_y_continuous(
+    name = "Mean Monthly Plastic Captured (kg)\n",
+    sec.axis = sec_axis(~.*coeff, name = "Direct Engagements (# of People)\n")
+  ) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  theme(
+    axis.title.y = element_text(color = "dodgerblue", size = 11),
+    axis.title.y.right = element_text(color = "forestgreen", size = 11),
+    axis.text.y = element_text(color = "dodgerblue"),
+    axis.text.y.right = element_text(color = "forestgreen"),
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Mean Plastic Captured & Total People Directly Engaged\n")
+
+thai_viz
+
+showtext_auto(enable = FALSE)
+
+ggsave("thailand_meanplastic_and_people.png", thai_viz)
+
+
+wildcoast_data$Month <- as.character(wildcoast_data$Month)
+
+wildcoast_data <- wildcoast_data %>% 
+  mutate(Month_code = case_when(wildcoast_data$Month == "January" ~ "01",
+                                wildcoast_data$Month == "February" ~ "02",
+                                wildcoast_data$Month == "March" ~ "03",
+                                wildcoast_data$Month == "April" ~ "04",
+                                wildcoast_data$Month == "May" ~ "05",
+                                wildcoast_data$Month == "June" ~ "06",
+                                wildcoast_data$Month == "July" ~ "07",
+                                wildcoast_data$Month == "August" ~ "08",
+                                wildcoast_data$Month == "September" ~ "09",
+                                wildcoast_data$Month == "October" ~ "10",
+                                wildcoast_data$Month == "November" ~ "11",
+                                wildcoast_data$Month == "December" ~"12"))
+
+wildcoast_data$Date <- paste(wildcoast_data$Year, wildcoast_data$Month_code, "01", sep="-")
+
+wildcoast_data$Dirty <- as.numeric(wildcoast_data$Dirty)
+wildcoast_data$Engaged <- as.numeric(wildcoast_data$Engaged)
+
+
+wildcoast_data[20,11] = 0
+wildcoast_data[21,11] = 0
+
+wildcoast_summary <- wildcoast_data %>% 
+  group_by(Date) %>% 
+  summarise(
+    Plastic_mean = mean(Dirty, na.rm = TRUE),
+    People = sum(Engaged, na.rm = TRUE)
+  )
+
+wildcoast_summary <- wildcoast_summary %>% 
+  mutate(People_c = cumsum(wildcoast_summary$People))
+
+wildcoast_data[20,11] = 0
+wildcoast_data[21,11] = 0
+
+coeff <- 1
+
+col_plas <- "dodgerblue"
+col_peop <- "forestgreen"
+
+class(wildcoast_summary$Date)
+wildcoast_summary$Date <- as.Date(wildcoast_summary$Date)
+
+wc_viz <- ggplot(wildcoast_summary, aes(x=Date)) +
+  geom_line(aes(y = Plastic_mean), size = 1, group = 1, color = "dodgerblue") +
+  geom_line(aes(y = People_c/coeff), size = 1, group = 1, color = "forestgreen") +
+  scale_y_continuous(
+    name = "Mean Monthly Plastic Captured (kg)\n",
+    sec.axis = sec_axis(~.*coeff, name = "Direct Engagements (# of People)\n")
+  ) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  theme(
+    axis.title.y = element_text(color = "dodgerblue", size = 11),
+    axis.title.y.right = element_text(color = "forestgreen", size = 11),
+    axis.text.y = element_text(color = "dodgerblue"),
+    axis.text.y.right = element_text(color = "forestgreen"),
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Mean Plastic Captured & Total People Directly Engaged\n")
+
+wc_viz
+
+
+ggsave("mexico_meanplastic_and_people.png", wc_viz)
+```
+
+```{r}
+indo_data <- ccc_data %>% 
+  filter(E == "Indonesia") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  ) 
+
+class(indo_data$Month)
+class(indo_data$Dirty)
+
+indo_data$Month <- as.factor(indo_data$Month)
+indo_data$Month <- factor(indo_data$Month, levels = c("January", "February","March", "April", "May", "June","July","August", "September", "October", "November", "December"))
+indo_data$Year <- as.factor(indo_data$Year)
+indo_data$Year <- factor(indo_data$Year, levels = c("2020", "2021", "2022"))
+
+indo_data$Dirty  <- as.numeric(indo_data$Dirty)
+
+indo_data$Month <- as.character(indo_data$Month)
+
+indo_data <- indo_data %>% 
+  mutate(Month_code = case_when(indo_data$Month == "January" ~ "01",
+                                indo_data$Month == "February" ~ "02",
+                                indo_data$Month == "March" ~ "03",
+                                indo_data$Month == "April" ~ "04",
+                                indo_data$Month == "May" ~ "05",
+                                indo_data$Month == "June" ~ "06",
+                                indo_data$Month == "July" ~ "07",
+                                indo_data$Month == "August" ~ "08",
+                                indo_data$Month == "September" ~ "09",
+                                indo_data$Month == "October" ~ "10",
+                                indo_data$Month == "November" ~ "11",
+                                indo_data$Month == "December" ~"12"))
+
+indo_data$Date <- paste(indo_data$Year, indo_data$Month_code, "01", sep="-")
+
+indo_data$Dirty <- as.numeric(indo_data$Dirty)
+indo_data$Engaged <- as.numeric(indo_data$Engaged)
+
+indo_summary <- indo_data %>% 
+  group_by(Date) %>% 
+  summarise(
+    Plastic_mean = mean(Dirty, na.rm = TRUE),
+    People = sum(Engaged, na.rm = TRUE)
+  )
+
+indo_summary <- indo_summary %>% 
+  mutate(People_c = cumsum(indo_summary$People))
+
+coeff <- .2
+
+col_plas <- "dodgerblue"
+col_peop <- "forestgreen"
+
+class(thailand_summary$Date)
+indo_summary$Date <- as.Date(indo_summary$Date)
+
+indo_viz <- ggplot(indo_summary, aes(x=Date)) +
+  geom_line(aes(y = Plastic_mean), size = 1, group = 1, color = "dodgerblue") +
+  geom_line(aes(y = People_c/coeff), size = 1, group = 1, color = "forestgreen") +
+  scale_y_continuous(
+    name = "Mean Monthly Plastic Captured (kg)\n",
+    sec.axis = sec_axis(~.*coeff, name = "Direct Engagements (# of People)\n")
+  ) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  theme(
+    axis.title.y = element_text(color = "dodgerblue", size = 11),
+    axis.title.y.right = element_text(color = "forestgreen", size = 11),
+    axis.text.y = element_text(color = "dodgerblue"),
+    axis.text.y.right = element_text(color = "forestgreen"),
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Mean Plastic Captured & Total People Directly Engaged\n")
+
+indo_viz
+
+showtext_auto(enable = FALSE)
+
+ggsave("indo_meanplastic_and_people.png", indo_viz)
+
+
+
+
+ich_data <- ccc_data %>% 
+  filter(E == "Ecuador") %>% 
+  select(C, D, E, F, G, L, M, N, O, P, Q, R, Z, AA, AB, AD, AE, AF, AG) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Social = L,
+    Media = M,
+    Reach = N,
+    Events = O,
+    Participate = P,
+    Engaged = Q,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF,
+    Active = AG
+  ) 
+
+class(ich_data$Month)
+class(ich_data$Dirty)
+
+ich_data$Dirty  <- as.numeric(ich_data$Dirty)
+
+ich_data$Month <- as.character(ich_data$Month)
+
+ich_data <- ich_data %>% 
+  mutate(Month_code = case_when(ich_data$Month == "January" ~ "01",
+                                ich_data$Month == "February" ~ "02",
+                                ich_data$Month == "March" ~ "03",
+                                ich_data$Month == "April" ~ "04",
+                                ich_data$Month == "May" ~ "05",
+                                ich_data$Month == "June" ~ "06",
+                                ich_data$Month == "July" ~ "07",
+                                ich_data$Month == "August" ~ "08",
+                                ich_data$Month == "September" ~ "09",
+                                ich_data$Month == "October" ~ "10",
+                                ich_data$Month == "November" ~ "11",
+                                ich_data$Month == "December" ~"12"))
+
+ich_data$Date <- paste(ich_data$Year, ich_data$Month_code, "01", sep="-")
+
+ich_data$Dirty <- as.numeric(ich_data$Dirty)
+ich_data$Engaged <- as.numeric(ich_data$Engaged)
+
+ich_summary <- ich_data %>% 
+  group_by(Date) %>% 
+  summarise(
+    Plastic_mean = mean(Dirty, na.rm = TRUE),
+    People = sum(Engaged, na.rm = TRUE)
+  )
+
+ich_summary <- ich_summary %>% 
+  mutate(People_c = cumsum(ich_summary$People))
+
+coeff <- 40
+
+col_plas <- "dodgerblue"
+col_peop <- "forestgreen"
+
+class(ich_summary$Date)
+ich_summary$Date <- as.Date(ich_summary$Date)
+
+ich_viz <- ggplot(ich_summary, aes(x=Date)) +
+  geom_line(aes(y = Plastic_mean), size = 1, group = 1, color = "dodgerblue") +
+  geom_line(aes(y = People_c/coeff), size = 1, group = 1, color = "forestgreen") +
+  scale_y_continuous(
+    name = "Mean Monthly Plastic Captured (kg)\n",
+    sec.axis = sec_axis(~.*coeff, name = "Direct Engagements (# of People)\n")
+  ) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 month") +
+  theme(
+    axis.title.y = element_text(color = "dodgerblue", size = 11),
+    axis.title.y.right = element_text(color = "forestgreen", size = 11),
+    axis.text.y = element_text(color = "dodgerblue"),
+    axis.text.y.right = element_text(color = "forestgreen"),
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Mean Plastic Captured & Total People Directly Engaged\n")
+
+ich_viz
+
+showtext_auto(enable = FALSE)
+
+ggsave("ich_meanplastic_and_people.png", ich_viz)
+```
+
+```{r}
+
+wm_data <- ccc_data %>% 
+  select(C, D, E, F, G, R, Z, AA, AB, AD, AE, AF) %>% 
+  rename(
+    Month = C,
+    Year = D,
+    Country = E,
+    Organization = F,
+    River = G,
+    Device = R,
+    Total = Z,
+    Dirty = AA,
+    Clean = AB,
+    Recycled = AD,
+    Repurposed = AE,
+    Landfill = AF
+  )
+
+class(wm_data$Recycled)
+
+wm_data$Recycled <- as.numeric(wm_data$Recycled)
+wm_data$Repurposed <- as.numeric(wm_data$Repurposed)
+wm_data$Landfill <- as.numeric(wm_data$Landfill)
+
+wm_data <- wm_data %>% 
+  mutate(
+    Repurpose = ifelse(wm_data$Country == "Kenya", wm_data$Recycled + wm_data$Repurposed, wm_data$Repurposed),
+    Recycle = ifelse(wm_data$Country == "Kenya", NA, wm_data$Recycled)
+  ) %>% 
+  select(
+    Month, Year, Country, Recycle, Repurpose, Landfill
+  )
+
+wm_data <- wm_data %>% 
+  rowwise() %>% 
+   mutate(
+    Total = sum(Recycle, Repurpose, Landfill, na.rm = TRUE)
+  )
+
+wm_data <- wm_data[wm_data$Total != 0, ]
+wm_data <- wm_data %>% 
+  replace(is.na(wm_data), 0)
+
+wm_data <- wm_data %>% 
+  mutate(
+    Rec_p = (Recycle/Total)
+  )
+
+wm_data <- wm_data %>% 
+  mutate(
+    Rep_p = (Repurpose/Total)
+  )
+
+wm_data <- wm_data %>% 
+  mutate(
+    Land_p = (Landfill/Total)
+  )
+
+
+wm_data$Month <- as.character(wm_data$Month)
+class(wm_data$Month)
+
+wm_data$Month_code <- case_when(wm_data$Month == "January" ~ "01",
+                                wm_data$Month == "February" ~ "02",
+                                wm_data$Month == "March" ~ "03",
+                                wm_data$Month == "April" ~ "04",
+                                wm_data$Month == "May" ~ "05",
+                                wm_data$Month == "June" ~ "06",
+                                wm_data$Month == "July" ~ "07",
+                                wm_data$Month == "August" ~ "08",
+                                wm_data$Month == "September" ~ "09",
+                                wm_data$Month == "October" ~ "10",
+                                wm_data$Month == "November" ~ "11",
+                                wm_data$Month == "December" ~"12")
+
+wm_data$Date <- paste(wm_data$Year, wm_data$Month_code, "01", sep="-")
+
+wm_data$Recycle <- as.numeric(wm_data$Recycle)
+wm_data$Repurpose <- as.numeric(wm_data$Repurpose)
+wm_data$Landfill <- as.numeric(wm_data$Landfill)
+
+wm_data_sum <- wm_data %>%
+  group_by(Date) %>% 
+  summarise(
+    Recycled = sum(Recycle),
+    Repurposed = sum(Repurpose),
+    Landfilled = sum(Landfill)
+  ) %>% 
+  rowwise() %>% 
+   mutate(
+    Total = sum(Recycled, Repurposed, Landfilled, na.rm = TRUE)
+  )
+
+wm_data_sum <- wm_data_sum %>% 
+  mutate(
+    Rec_p = (Recycled/Total)
+  )
+
+wm_data_sum <- wm_data_sum %>% 
+  mutate(
+    Rep_p = (Repurposed/Total)
+  )
+
+wm_data_sum <- wm_data_sum %>%
+  mutate(
+    Land_p = (Landfilled/Total)
+  )
+
+wm_data_sum$Date <- as.Date(wm_data_sum$Date)
+
+colors <- c(Recycled = "springgreen4", Repurposed = "steelblue4", Landfilled = "sienna4")
+
+wm_viz <- ggplot(wm_data_sum, aes(x=Date))+
+  geom_line(aes(y = Rec_p, color = "Recycled"), size = 1) +
+  geom_line(aes(y = Rep_p, color = "Repurposed"), size = 1) +
+  geom_line(aes(y = Land_p, color = "Landfilled"), size = 1) +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "4 month") +
+  scale_y_continuous(name = "% of Collected Plastic\n", labels = percent, expand = c(0,0)) +
+  theme(
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10, face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.text.y = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold")) +
+    ggtitle("Fate of Captured Plastic\n") +
+    xlab("\nDate") +
+    labs(color = "Legend") +
+    scale_color_manual(values = colors) 
+
+
+wm_viz
+
+showtext_auto(enable = FALSE)
+ggsave("wm_viz.png")
+ 
+#kenya_wm <- wm_data %>% 
+  #filter(Country == "Kenya")
+  
+#kenya_wm$Recycled <- as.numeric(kenya_wm$Recycled)
+##kenya_wm$Landfill <- as.numeric(kenya_wm$Landfill)
+
+#kenya_wm_sum <- kenya_wm %>% 
+ # summarise(
+ #   Recycled = sum(Recycled, na.rm = TRUE),
+ #   Repurposed = sum(Repurposed, na.rm = TRUE),
+ #   Landfill = sum(Landfill, na.rm = TRUE)
+#  )
+
+
+wm_data_sum_total <- wm_data_sum %>% 
+  select(Date, Total)
+  
+wm_data_pivot <- wm_data_sum %>% 
+  select(Date, Recycled, Repurposed, Landfilled) %>% 
+    pivot_longer(
+    cols = 2:4,
+    names_to = "Fate",
+    values_to = "Weight"
+  )
+
+wm_data_pivot <- merge(x = wm_data_sum_total, y = wm_data_pivot, by = "Date", all = TRUE)
+
+wm_data_pivot <- wm_data_pivot %>% 
+  mutate(
+    Percent = (Weight/Total)
+  )
+
+
+wm_stack_viz_p <- ggplot(wm_data_pivot, aes(x =  Date, y = Percent, fill = Fate)) +
+  geom_area(alpha = 0.8, size = .5, color ="grey24") +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 month", expand = c(0,0)) +
+  scale_y_continuous(name = "% of Collected Plastic\n", labels = percent, expand = c(0,0)) +
+  scale_fill_manual(values=colors, breaks = c("Landfilled", "Recycled", "Repurposed")) +
+  ggtitle("Fate of Captured Plastic\n") +
+  xlab("\nDate") +
+  ylab("Plastic Weight (%)\n") +
+  theme(
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10, face = "bold", color = "grey24"),
+    axis.title.x = element_text(face = "bold", color = "grey24"),
+    axis.text.y = element_text(face = "bold", color = "grey24"),
+    axis.title.y = element_text(face = "bold", color = "grey24"),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold"))
+
+wm_stack_viz_p
+
+showtext_auto(enable = FALSE)
+ggsave("wm_stack_viz_p.png")
+
+
+wm_stack_viz <- ggplot(wm_data_pivot, aes(x =  Date, y = Weight, fill = Fate)) +
+  geom_area(alpha = 0.8, size = .2, color ="grey24") +
+  theme_light() +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 month", expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_manual(values=colors, breaks = c("Landfilled", "Recycled", "Repurposed")) +
+  ggtitle("Fate of Captured Plastic\n") +
+  xlab("\nDate") +
+  ylab("Plastic Weight (kg)\n") +
+  theme(
+    axis.text.x = element_text(angle = -45, hjust = -.1, size = 10, face = "bold", color = "grey24"),
+    axis.title.x = element_text(face = "bold", color = "grey24"),
+    axis.text.y = element_text(face = "bold", color = "grey24"),
+    axis.title.y = element_text(face = "bold", color = "grey24"),
+    plot.title = element_text(hjust = 0.5, color = "grey24", face = "bold"))
+
+
+wm_stack_viz
+
+showtext_auto(enable = FALSE)
+ggsave("wm_stack_viz.png")
+```
+
+###Updating the polymer percentage graph with new data (5/2023) + Jamaica + Panama
+#Wrangling data to look at polymer breakdowns
+```{r}
+ccc_data_5_23 <- read_csv("CCC_MonthlyDataLog_Responses_5_23.csv")
+
+ccc_data_5_23 <- head(ccc_data_5_23, 481) %>% 
+  select(1:65)
+
+summary(ccc_data_5_23)
+
+ccc_data_5_23$AT <- as.numeric(ccc_data_5_23$AT)
+ccc_data_5_23$AU <- as.numeric(ccc_data_5_23$AU)
+ccc_data_5_23$AV <- as.numeric(ccc_data_5_23$AV)
+ccc_data_5_23$AW <- as.numeric(ccc_data_5_23$AW)
+ccc_data_5_23$AX <- as.numeric(ccc_data_5_23$AX)
+ccc_data_5_23$AY <- as.numeric(ccc_data_5_23$AY)
+ccc_data_5_23$AZ <- as.numeric(ccc_data_5_23$AZ)
+ccc_data_5_23$BA <- as.numeric(ccc_data_5_23$BA)
+
+ccc_data_5_23 <- ccc_data_5_23 %>% 
+  rename(
+    LDPE = AT,
+    HDPE = AU,
+    PP = AV,
+    PVC = AW,
+    PS = AX,
+    Nylon = AY,
+    Teflon = AZ,
+    PET = BA
+  )
+
+#saving data
+write_csv(ccc_data_5_23, file = "ccc_data_5_23.csv")
+```
+
+#Stacked bar graph to show the percentage breakdown of each polymer type by country
+```{r}
+#polymer by country visualization
+
+ccc_data_polymer_5_23 <- ccc_data_5_23 %>% 
+  select(C, D, E, LDPE, HDPE, PP, PVC, PS, Nylon, Teflon, PET) %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET) %>% 
+  mutate(LDPE_p = (LDPE/total)*100) %>%
+  mutate(HDPE_p = (HDPE/total)*100) %>%
+  mutate(PP_p = (PP/total)*100) %>%
+  mutate(PVC_p = (PVC/total)*100) %>%
+  mutate(PS_p = (PS/total)*100) %>%
+  mutate(Nylon_p = (Nylon/total)*100) %>%
+  mutate(Teflon_p = (Teflon/total)*100) %>%
+  mutate(PET_p = (PET/total)*100)
+
+summary(ccc_data_polymer)
+
+ccc_data_polymer_5_23_short <- ccc_data_5_23 %>% 
+  select(C, D, E, LDPE, HDPE, PP, PVC, PS, Nylon, Teflon, PET) %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET)
+
+polymer_summary_5_23 <- ccc_data_polymer_5_23_short %>% 
+  group_by(E) %>% 
+  summarise(
+    LDPE = sum(LDPE, na.rm = TRUE),
+    HDPE = sum(HDPE, na.rm = TRUE),
+    PP = sum(PP, na.rm = TRUE),
+    PVC = sum(PVC, na.rm = TRUE),
+    PS = sum(PS, na.rm = TRUE),
+    Nylon = sum(Nylon, na.rm = TRUE),
+    Teflon = sum(Teflon, na.rm = TRUE),
+    PET = sum(PET, na.rm = TRUE)
+  )
+
+polymer_summary_5_23 <- polymer_summary_5_23[c(2, 4:10),]
+
+polymer_summary_5_23_p <- polymer_summary_5_23 %>% 
+  mutate(total = LDPE + HDPE + PP + PVC + PS + Nylon + Teflon + PET) %>% 
+  mutate(LDPE_p = (LDPE/total)*100) %>%
+  mutate(HDPE_p = (HDPE/total)*100) %>%
+  mutate(PP_p = (PP/total)*100) %>%
+  mutate(PVC_p = (PVC/total)*100) %>%
+  mutate(PS_p = (PS/total)*100) %>%
+  mutate(Nylon_p = (Nylon/total)*100) %>%
+  mutate(Teflon_p = (Teflon/total)*100) %>%
+  mutate(PET_p = (PET/total)*100)
+
+polymer_pivot_5_23 <- polymer_summary_5_23 %>% 
+  pivot_longer(
+    cols = 2:9,
+    names_to = "Polymer",
+    values_to = "Total"
+  )
+
+polymer_pivot_5_23 <- polymer_pivot_5_23 %>% 
+  group_by(E)
+
+cbPalette <- c("#56B4E9", "#E69F00", "#CC79A7", "#009E73", "#999999", "#0072B2", "#D55E00", "#F0E442")
+
+polymer_pivot_5_23 <- polymer_pivot_5_23 %>% 
+  rename(Country = E)
+
+polymer_pivot_5_23$Country <- factor(polymer_pivot_5_23$Country, levels = c("Kenya", "Ecuador", "Mexico", "Indonesia", "Thailand", "Vietnam", "Panama", "Jamaica"))
+
+class(polymer_pivot_5_23$Polymer)
+
+polymer_pivot_5_23$Polymer <- as.factor(polymer_pivot_5_23$Polymer)
+
+polymer_pivot_5_23$Polymer <- factor(polymer_pivot_5_23$Polymer, levels = c("Nylon", "Teflon","PVC", "LDPE", "PS", "PP","HDPE","PET"))
+
+cbPalette_two <- c("#CC79A7", "#F0E442", "#D55E00", "#E69F00", "#0072B2", "#999999", "#56B4E9", "#009E73")
+
+polymer_graph_5_23 <- ggplot(polymer_pivot_5_23, aes(fill=Polymer, y = Total, x = Country, group = Total)) +
+  geom_bar(position = "fill", stat = "identity", color = 'black', size = 0.2) +
+  theme_classic() +
+  scale_fill_manual(values=cbPalette_two) +
+  ggtitle("Polymer Type (%) by Country\n") +
+  xlab("\nCountry") +
+  ylab("% of Plastic Collected (by weight)\n") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = percent, expand = c(0,0)) +
+  annotate("text", label = "37.5%", x = 2, y = .19, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "40.7%", x = 4, y = .20, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "34.2%", x = 1, y = .17, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "66.0%", x = 3, y = .33, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "34.3%", x = 5, y = .17, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "52.9%", x = 6, y = .26, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "26.4%", x = 2, y = .51, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "32.6%", x = 4, y = .57, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "19.0%", x = 1, y = .44, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "31.3%", x = 3, y = .80, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "26.7%", x = 5, y = .48, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "14.4%", x = 6, y = .60, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "18.1%", x = 2, y = .73, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "22.8%", x = 4, y = .85, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "19.0%", x = 1, y = .63, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "25.0%", x = 5, y = .74, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "11.4%", x = 6, y = .73, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "15.8%", x = 2, y = .90, color = 'white', size = 3, fontface = 'bold') +  
+  annotate("text", label = "76.2%", x = 7, y = .38, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "23.8%", x = 7, y = .88, color = 'white', size = 3, fontface = 'bold') +
+  annotate("text", label = "95.5%", x = 8, y = .48, color = 'white', size = 3, fontface = 'bold')
+
+
+polymer_graph_5_23
+
+ggsave("polymer_graph_5_23.png")
+
+
+
+
+```
